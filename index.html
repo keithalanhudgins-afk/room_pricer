@@ -513,38 +513,47 @@ function printLabels(rows){
   var printable=rows.filter(function(r){return r.status==='done';});
   if(!printable.length){ setCloud('Nothing selected to print.'); return; }
   var sz=labelSize();
-  var W=sz.wmm, H=sz.hmm;            // millimeters, landscape (long edge = width)
-  var pad=1.5;                       // mm padding inside label
-  var logoH = H>=30 ? 5 : 4;         // mm
+  // The QL-810W reports DK-1209 media as PORTRAIT: 29mm wide x 62mm tall.
+  // We keep the PAGE portrait (so iOS prints 1 page, not 22), but rotate the
+  // label CONTENT 90deg so text reads across the long (62mm) edge.
+  var Wlong = Math.max(sz.wmm, sz.hmm);   // 62 -> becomes the visual width
+  var Hshort = Math.min(sz.wmm, sz.hmm);  // 29 -> becomes the visual height
+  var pageW = Hshort;  // portrait page width  (29)
+  var pageH = Wlong;   // portrait page height (62)
+  var pad=1.5;
+  var logoH = Hshort>=30 ? 5 : 4;
   var labelHtml=[];
   printable.forEach(function(it){
     var n=Math.max(1,it.qty||1);
     for(var c=0;c<n;c++){
       labelHtml.push(
-        '<div class="lbl">'+
+        '<div class="page"><div class="lbl">'+
           '<div class="top"><img src="'+LOGO_BW+'" alt="" /><span class="lot">LOT '+esc(lotLabel(it))+'</span></div>'+
           '<div class="name">'+esc(it.tagName||it.title)+'</div>'+
           '<div class="price">$'+Number(it.price||0).toFixed(2)+'</div>'+
-        '</div>'
+        '</div></div>'
       );
     }
   });
   var doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Labels</title><style>'+
-    '@page { size: '+W+'mm '+H+'mm; margin: 0; }'+
-    'html,body{margin:0;padding:0;width:'+W+'mm;}'+
+    '@page { size: '+pageW+'mm '+pageH+'mm; margin: 0; }'+
+    'html,body{margin:0;padding:0;}'+
     '*{box-sizing:border-box;}'+
-    '.lbl{width:'+W+'mm;height:'+H+'mm;overflow:hidden;'+
-        'page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid;'+
-        'display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;'+
+    '.page{width:'+pageW+'mm;height:'+pageH+'mm;overflow:hidden;position:relative;'+
+        'page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid;}'+
+    '.page:last-child{page-break-after:auto;break-after:auto;}'+
+    // the label is built at the WIDE size, then rotated 90deg to sit on the tall page
+    '.lbl{position:absolute;top:50%;left:50%;width:'+Wlong+'mm;height:'+Hshort+'mm;'+
+        'transform:translate(-50%,-50%) rotate(90deg);transform-origin:center center;'+
+        'display:flex;flex-direction:column;justify-content:space-between;'+
         'padding:'+pad+'mm '+(pad+0.5)+'mm;'+
         'font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;color:#000;background:#fff;}'+
-    '.lbl:last-child{page-break-after:auto;break-after:auto;}'+
     '.top{display:flex;justify-content:space-between;align-items:center;height:'+logoH+'mm;}'+
     '.top img{height:'+logoH+'mm;width:auto;}'+
     '.lot{font-size:8pt;font-weight:800;line-height:1;}'+
     '.name{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;'+
-        'font-size:'+(H>=30?11:10)+'pt;font-weight:700;line-height:1.05;overflow:hidden;}'+
-    '.price{text-align:center;font-size:'+(H>=30?24:20)+'pt;font-weight:900;line-height:1;}'+
+        'font-size:11pt;font-weight:700;line-height:1.05;overflow:hidden;}'+
+    '.price{text-align:center;font-size:24pt;font-weight:900;line-height:1;}'+
     '</style></head><body>'+labelHtml.join('')+
     '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},350);};</scr'+'ipt></body></html>';
   var blob=new Blob([doc],{type:'text/html'});
