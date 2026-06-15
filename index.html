@@ -113,6 +113,7 @@
   #keyPanel.open{display:block}
   input.key{width:100%;padding:12px;font-size:16px;border:2px solid var(--manilaEdge);border-radius:10px;background:var(--white)}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -512,57 +513,83 @@ function esc(t){ return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
 function printLabels(rows){
   var printable=rows.filter(function(r){return r.status==='done';});
   if(!printable.length){ setCloud('Nothing selected to print.'); return; }
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    setCloud('Label engine still loading — wait a second and tap print again.');
+    return;
+  }
   var sz=labelSize();
-  // The QL-810W reports DK-1209 media as PORTRAIT: 29mm wide x 62mm tall.
-  // We keep the PAGE portrait (so iOS prints 1 page, not 22), but rotate the
-  // label CONTENT 90deg so text reads across the long (62mm) edge.
-  var Wlong = Math.max(sz.wmm, sz.hmm);   // 62 -> becomes the visual width
-  var Hshort = Math.min(sz.wmm, sz.hmm);  // 29 -> becomes the visual height
-  var pageW = Hshort;  // portrait page width  (29)
-  var pageH = Wlong;   // portrait page height (62)
-  var pad=1.5;
-  var logoH = Hshort>=30 ? 5 : 4;
-  var labelHtml=[];
+  // Address-label style: 62mm WIDE x 29mm TALL, landscape.
+  var W = Math.max(sz.wmm, sz.hmm);   // 62
+  var H = Math.min(sz.wmm, sz.hmm);   // 29
+  var jsPDF = window.jspdf.jsPDF;
+  // unit mm; orientation landscape; page exactly the label size -> 1 label per page, no footers
+  var doc = new jsPDF({ orientation: (W>=H?'landscape':'portrait'), unit:'mm', format:[W,H] });
+
+  var pageIndex=0;
+  function addLabel(it){
+    if(pageIndex>0) doc.addPage([W,H], (W>=H?'landscape':'portrait'));
+    pageIndex++;
+    var name=(it.tagName||it.title||'Item').slice(0,28);  // shorter cap since logo takes top space
+    var price='$'+Number(it.price||0).toFixed(2);
+
+    // ---- Logo: small, centered at top ----
+    var logoBottom = 3;  // default top margin if logo fails
+    try {
+      var logoW = 22, logoH = 6.5;          // mm, keeps aspect roughly
+      doc.addImage(LOGO_BW, 'PNG', (W-logoW)/2, 2, logoW, logoH);
+      logoBottom = 2 + logoH + 1.5;          // y just below logo
+    } catch(e){ logoBottom = 3; }
+
+    // ---- Title: one line preferred, shrink to fit, wrap to 2 only if needed ----
+    doc.setFont('helvetica','bold');
+    var maxTextW = W-6;
+    var titleSize = 12;
+    var lines;
+    while(titleSize>=7){
+      doc.setFontSize(titleSize);
+      lines = doc.splitTextToSize(name, maxTextW);
+      if(lines.length<=2) break;
+      titleSize -= 0.5;
+    }
+    if(lines.length>2) lines = lines.slice(0,2);
+    doc.setFontSize(titleSize);
+    var lineH = titleSize*0.42;
+    var ty = logoBottom;
+    for(var i=0;i<lines.length;i++){
+      doc.text(lines[i], W/2, ty, { align:'center', baseline:'top' });
+      ty += lineH;
+    }
+
+    // ---- Price: big, bold, centered in remaining lower space ----
+    doc.setFont('helvetica','bold');
+    var priceSize=26;
+    doc.setFontSize(priceSize);
+    while(doc.getTextWidth(price) > (W-6) && priceSize>14){ priceSize-=1; doc.setFontSize(priceSize); }
+    var priceTop = ty + 1;
+    var priceY = priceTop + (H - priceTop)/2;   // center price in the space below the title
+    if(priceY > H-3) priceY = H-3;
+    doc.text(price, W/2, priceY, { align:'center', baseline:'middle' });
+  }
+
   printable.forEach(function(it){
     var n=Math.max(1,it.qty||1);
-    for(var c=0;c<n;c++){
-      labelHtml.push(
-        '<div class="page"><div class="lbl">'+
-          '<div class="top"><img src="'+LOGO_BW+'" alt="" /><span class="lot">LOT '+esc(lotLabel(it))+'</span></div>'+
-          '<div class="name">'+esc(it.tagName||it.title)+'</div>'+
-          '<div class="price">$'+Number(it.price||0).toFixed(2)+'</div>'+
-        '</div></div>'
-      );
-    }
+    for(var c=0;c<n;c++) addLabel(it);
   });
-  var doc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Labels</title><style>'+
-    '@page { size: '+pageW+'mm '+pageH+'mm; margin: 0; }'+
-    'html,body{margin:0;padding:0;}'+
-    '*{box-sizing:border-box;}'+
-    '.page{width:'+pageW+'mm;height:'+pageH+'mm;overflow:hidden;position:relative;'+
-        'page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid;}'+
-    '.page:last-child{page-break-after:auto;break-after:auto;}'+
-    // the label is built at the WIDE size, then rotated 90deg to sit on the tall page
-    '.lbl{position:absolute;top:50%;left:50%;width:'+Wlong+'mm;height:'+Hshort+'mm;'+
-        'transform:translate(-50%,-50%) rotate(90deg);transform-origin:center center;'+
-        'display:flex;flex-direction:column;justify-content:space-between;'+
-        'padding:'+pad+'mm '+(pad+0.5)+'mm;'+
-        'font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;color:#000;background:#fff;}'+
-    '.top{display:flex;justify-content:space-between;align-items:center;height:'+logoH+'mm;}'+
-    '.top img{height:'+logoH+'mm;width:auto;}'+
-    '.lot{font-size:8pt;font-weight:800;line-height:1;}'+
-    '.name{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;'+
-        'font-size:11pt;font-weight:700;line-height:1.05;overflow:hidden;}'+
-    '.price{text-align:center;font-size:24pt;font-weight:900;line-height:1;}'+
-    '</style></head><body>'+labelHtml.join('')+
-    '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},350);};</scr'+'ipt></body></html>';
-  var blob=new Blob([doc],{type:'text/html'});
-  var url=URL.createObjectURL(blob);
-  var win=window.open(url,'_blank');
-  if(!win){
-    var a=document.createElement('a'); a.href=url; a.download='labels.html';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setCloud('Pop-ups are blocked here, so I downloaded labels.html instead — open that file and it will print.');
+
+  // Open the PDF so the user can print it (PDF printout has NO Safari date/page footer)
+  try {
+    var blob = doc.output('blob');
+    var url = URL.createObjectURL(blob);
+    var win = window.open(url,'_blank');
+    if(!win){
+      var a=document.createElement('a'); a.href=url; a.download='labels.pdf';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setCloud('Labels saved as a PDF — open it from Files/Downloads and print that. (Printing the PDF avoids the date and page numbers.)');
+    } else {
+      setCloud('Labels opened as a PDF. Tap the Share/Print icon in the PDF viewer and print to the Brother. The PDF prints clean — no date or page numbers.');
+    }
+  } catch(e){
+    setCloud('Could not build the label PDF: '+((e&&e.message)||e));
   }
 }
 
