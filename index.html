@@ -540,35 +540,42 @@ function printLabels(rows){
       logoBottom = 2 + logoH + 1.5;          // y just below logo
     } catch(e){ logoBottom = 3; }
 
-    // ---- Title: one line preferred, shrink to fit, wrap to 2 only if needed ----
+    // ---- Reserve a fixed BOTTOM BAND for the price so it can never be cut off ----
+    var priceBandH = 11;                 // mm reserved at bottom for the price
+    var priceCenterY = H - priceBandH/2; // vertical center of the price
+    var titleTop = logoBottom;           // title starts just under the logo
+    var titleBottom = H - priceBandH - 0.5; // title must end above the price band
+    var titleSpace = titleBottom - titleTop; // mm available for the title
+
+    // ---- Title: fit within titleSpace (height AND width), up to 2 lines ----
     doc.setFont('helvetica','bold');
     var maxTextW = W-6;
     var titleSize = 12;
-    var lines;
-    while(titleSize>=7){
+    var lines, lineH;
+    while(titleSize>=6.5){
       doc.setFontSize(titleSize);
       lines = doc.splitTextToSize(name, maxTextW);
-      if(lines.length<=2) break;
+      if(lines.length>2) lines = lines.slice(0,2);
+      lineH = titleSize*0.42;
+      if(lines.length*lineH <= titleSpace) break;  // fits in the reserved height
       titleSize -= 0.5;
     }
-    if(lines.length>2) lines = lines.slice(0,2);
     doc.setFontSize(titleSize);
-    var lineH = titleSize*0.42;
-    var ty = logoBottom;
+    lineH = titleSize*0.42;
+    // vertically center the title block within its available space
+    var blockH = lines.length*lineH;
+    var ty = titleTop + Math.max(0,(titleSpace - blockH)/2);
     for(var i=0;i<lines.length;i++){
       doc.text(lines[i], W/2, ty, { align:'center', baseline:'top' });
       ty += lineH;
     }
 
-    // ---- Price: big, bold, centered in remaining lower space ----
+    // ---- Price: big, bold, locked in the bottom band ----
     doc.setFont('helvetica','bold');
     var priceSize=26;
     doc.setFontSize(priceSize);
     while(doc.getTextWidth(price) > (W-6) && priceSize>14){ priceSize-=1; doc.setFontSize(priceSize); }
-    var priceTop = ty + 1;
-    var priceY = priceTop + (H - priceTop)/2;   // center price in the space below the title
-    if(priceY > H-3) priceY = H-3;
-    doc.text(price, W/2, priceY, { align:'center', baseline:'middle' });
+    doc.text(price, W/2, priceCenterY, { align:'center', baseline:'middle' });
   }
 
   printable.forEach(function(it){
