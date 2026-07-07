@@ -56,7 +56,7 @@
   .msg.good{color:var(--blue)}
   .msg.bad{color:var(--rust)}
 
-  .dashed{border:3px dashed var(--blue);border-radius:14px;background:var(--white);padding:24px;text-align:center;margin-bottom:20px}
+  .dashed{border:2px dashed var(--manilaEdge);border-radius:14px;background:var(--white);padding:24px;text-align:center;margin-bottom:20px}
   .addbtn{background:var(--blue);color:var(--white);border:none;border-radius:12px;padding:18px 30px;font-size:22px;font-weight:800}
   .addbtn:disabled{background:var(--soft)}
 
@@ -144,10 +144,10 @@
   <!-- Step 1 -->
   <div class="card">
     <div class="step">Step 1 — Your sale</div>
+    <p class="hint" style="margin-top:0;margin-bottom:10px;font-size:15px">Type a sale name, then tap <strong>Start new sale</strong>. Coming back to a sale you already started? Tap <strong>Load a sale</strong>.</p>
     <div class="row">
-      <input class="txt initials" id="initials" placeholder="Initials" maxlength="2">
       <input class="txt sale" id="saleName" placeholder="Sale name (e.g. Smith House)">
-      <button class="btn btn-ghost-red" id="newSale">Start new sale</button>
+      <button class="btn btn-blue" id="newSale">Start new sale</button>
       <button class="btn btn-ghost-blue" id="loadSale">Load a sale</button>
     </div>
     <div id="savedList"></div>
@@ -246,6 +246,17 @@ var state = {
   copied: false
 };
 var lotCounter = 0;
+function newItemNumber(extraRows){
+  // Six-digit random number, unique within the current set of items
+  // (and any rows being built in the current batch).
+  var existing = {};
+  for(var i=0;i<state.items.length;i++){ if(state.items[i].lot!=null) existing[String(state.items[i].lot)]=true; }
+  if(extraRows){ for(var j=0;j<extraRows.length;j++){ if(extraRows[j].lot!=null) existing[String(extraRows[j].lot)]=true; } }
+  var n, guard=0;
+  do { n = Math.floor(100000 + Math.random()*900000); guard++; }
+  while(existing[String(n)] && guard<50);
+  return n;
+}
 
 function $(id){ return document.getElementById(id); }
 function labelSize(){ for(var i=0;i<LABEL_SIZES.length;i++){ if(LABEL_SIZES[i].id===state.labelSizeId) return LABEL_SIZES[i]; } return LABEL_SIZES[0]; }
@@ -354,20 +365,16 @@ function callPricingAPI(base64){
 
 /* ================= sales: local storage ================= */
 function slugify(s){ return (s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60); }
-function lotLabel(it){ return (it.deviceTag||'')+it.lot; }
+function lotLabel(it){ return it.lot; }
 function saleKey(){ return 'rp_sale:'+(slugify(state.saleName)||'untitled'); }
 
 function loadDeviceProfile(){
   try{
     var p=JSON.parse(localStorage.getItem('rp_device')||'{}');
-    if(p.initials){ state.initials=p.initials; $('initials').value=p.initials; }
+    /* initials removed from UI; lot numbers are plain now */
   }catch(e){}
 }
-function saveInitials(val){
-  var clean=val.replace(/[^a-zA-Z]/g,'').toUpperCase().slice(0,2);
-  state.initials=clean; $('initials').value=clean;
-  try{ localStorage.setItem('rp_device', JSON.stringify({initials:clean})); }catch(e){}
-}
+function saveInitials(){ /* initials feature removed from UI */ }
 function writeSale(showMsg){
   var done=state.items.filter(function(it){return it.status==='done';});
   if(!done.length && !state.saleName.trim()){ if(showMsg) setCloud('Nothing to save yet.'); return; }
@@ -376,7 +383,7 @@ function writeSale(showMsg){
     items: done.map(function(it){ return {
       id:it.id, lot:it.lot, deviceTag:it.deviceTag||state.initials, title:it.title, tagName:it.tagName,
       category:it.category, conditionNote:it.conditionNote, price:it.price, qty:it.qty||1,
-      priceLow:it.priceLow, priceHigh:it.priceHigh, reasoning:it.reasoning, researchFlag:it.researchFlag, thumb:it.thumb||''
+      priceLow:it.priceLow, priceHigh:it.priceHigh, aiSuggested:(it.aiSuggested!=null?it.aiSuggested:it.price), reasoning:it.reasoning, researchFlag:it.researchFlag, thumb:it.thumb||''
     };})
   };
   try{ localStorage.setItem(saleKey(), JSON.stringify(payload)); if(showMsg) setCloud('Saved '+done.length+' item'+(done.length===1?'':'s')+' to "'+name+'" on this phone.'); }
@@ -411,16 +418,16 @@ function openSavedSales(){
 function loadSale(key){
   var d; try{ d=JSON.parse(localStorage.getItem(key)); }catch(e){ setCloud('That sale could not be read.'); return; }
   if(!d || !(d.items||[]).length){ setCloud('That sale had no items.'); return; }
-  if(d.name) { state.saleName=d.name; $('saleName').value=d.name; }
+  if(d.name) { state.saleName=d.name; $('saleName').value=d.name; } if(typeof refreshNewSaleBtn==='function') refreshNewSaleBtn();
   if(d.companyName){ state.companyName=d.companyName; $('companyName').value=d.companyName; }
   if(d.labelSizeId){ state.labelSizeId=d.labelSizeId; $('labelSize').value=d.labelSizeId; }
   state.items = d.items.map(function(s){ return {
     id:s.id||('item-'+Date.now()+'-'+Math.random()), lot:s.lot, deviceTag:s.deviceTag||'', file:null, thumb:s.thumb||'',
     status:'done', tagName:s.tagName, title:s.title, category:s.category, conditionNote:s.conditionNote,
-    price:s.price, qty:s.qty||1, priceLow:s.priceLow, priceHigh:s.priceHigh, reasoning:s.reasoning, researchFlag:s.researchFlag,
+    price:s.price, qty:s.qty||1, priceLow:s.priceLow, priceHigh:s.priceHigh, aiSuggested:(s.aiSuggested!=null?s.aiSuggested:s.price), reasoning:s.reasoning, researchFlag:s.researchFlag,
     error:'', toPrint:true
   };});
-  lotCounter=Math.max.apply(null,[0].concat(state.items.map(function(m){return m.lot||0;})));
+  lotCounter=state.items.length;
   state.savedOpen=false;
   setCloud('Loaded "'+(d.name||'sale')+'" — '+state.items.length+' items.');
   renderSaved(); renderAll();
@@ -437,8 +444,8 @@ function startNewSale(){
     setTimeout(function(){ state.confirmNew=false; },6000);
     return;
   }
-  state.confirmNew=false; state.items=[]; lotCounter=0; state.saleName=''; $('saleName').value=''; state.savedOpen=false;
-  setCloud('Fresh start — your lot numbers begin at '+(state.initials||'')+'1.');
+  state.confirmNew=false; state.items=[]; lotCounter=0; state.saleName=''; $('saleName').value=''; state.savedOpen=false; if(typeof refreshNewSaleBtn==='function') refreshNewSaleBtn();
+  setCloud('Fresh start — each item gets its own number as you add it.');
   renderSaved(); renderAll();
 }
 
@@ -451,8 +458,9 @@ function handleFiles(fileList){
   var prep = files.reduce(function(chain,file){
     return chain.then(function(){
       lotCounter+=1;
+      var itemNo=newItemNumber(newRows);
       return fileToThumbDataUrl(file).then(function(thumb){
-        newRows.push({ id:'item-'+Date.now()+'-'+lotCounter, lot:lotCounter, deviceTag:state.initials, file:file, thumb:thumb,
+        newRows.push({ id:'item-'+Date.now()+'-'+lotCounter, lot:itemNo, deviceTag:'', file:file, thumb:thumb,
           status:'waiting', tagName:'', title:'', category:'', conditionNote:'', price:null, qty:1,
           priceLow:null, priceHigh:null, reasoning:'', researchFlag:false, error:'', toPrint:true });
       });
@@ -470,7 +478,7 @@ function handleFiles(fileList){
           var price=roundEstatePrice(Number(result.suggested_price)||1);
           patchItem(row.id,{ status:'done', title:result.title||'Unidentified item',
             tagName:(result.tag_name||result.title||'Item').slice(0,28), category:result.category||'',
-            conditionNote:result.condition_note||'', price:price,
+            conditionNote:result.condition_note||'', price:price, aiSuggested:price,
             priceLow:Number(result.price_low)||price, priceHigh:Number(result.price_high)||price,
             reasoning:result.reasoning||'', researchFlag:!!result.research_flag });
         }).catch(function(err){
@@ -492,7 +500,7 @@ function retryItem(id){
     var price=roundEstatePrice(Number(result.suggested_price)||1);
     patchItem(id,{ status:'done', title:result.title||'Unidentified item',
       tagName:(result.tag_name||result.title||'Item').slice(0,28), category:result.category||'',
-      conditionNote:result.condition_note||'', price:price,
+      conditionNote:result.condition_note||'', price:price, aiSuggested:price,
       priceLow:Number(result.price_low)||price, priceHigh:Number(result.price_high)||price,
       reasoning:result.reasoning||'', researchFlag:!!result.research_flag });
     scheduleAutosave();
@@ -613,6 +621,59 @@ function copyInventory(){
   }).catch(function(){});
 }
 
+/* ================= CSV export ================= */
+function csvCell(v){
+  var s = (v==null?'':String(v));
+  return /[",\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function exportCsv(){
+  var done=state.items.filter(function(it){return it.status==='done';});
+  if(!done.length){ setCloud('Nothing to export yet — price some items first.'); return; }
+  var rows=[['Item Number','Item Name','Category','AI Suggested Price','Low Estimate','High Estimate','Printed Tag Price','Quantity']];
+  done.forEach(function(it){
+    rows.push([
+      lotLabel(it),
+      it.title||'',
+      it.category||'',
+      (it.aiSuggested!=null?it.aiSuggested:it.price),
+      (it.priceLow!=null?it.priceLow:''),
+      (it.priceHigh!=null?it.priceHigh:''),
+      (it.price!=null?it.price:''),
+      (it.qty||1)
+    ]);
+  });
+  var csv=rows.map(function(r){ return r.map(csvCell).join(','); }).join('\r\n');
+  var saleSlug=(slugify(state.saleName)||'sale');
+  var fname=saleSlug+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  var blob=new Blob([csv],{type:'text/csv'});
+
+  // Try the iPhone share sheet first (lets the person email/AirDrop it right away).
+  try{
+    if(navigator.canShare){
+      var file=new File([blob],fname,{type:'text/csv'});
+      if(navigator.canShare({files:[file]})){
+        navigator.share({files:[file], title:fname})
+          .then(function(){ setCloud('CSV shared. You can email or AirDrop it from here.'); })
+          .catch(function(){ downloadCsvFallback(blob,fname); });
+        return;
+      }
+    }
+  }catch(e){}
+  downloadCsvFallback(blob,fname);
+}
+function downloadCsvFallback(blob,fname){
+  var url=URL.createObjectURL(blob);
+  var win=window.open(url,'_blank');
+  if(!win){
+    var a=document.createElement('a'); a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setCloud('CSV saved to your Files/Downloads — open it there to email it.');
+  } else {
+    setCloud('CSV opened — use the Share icon to email or save it.');
+  }
+  setTimeout(function(){ URL.revokeObjectURL(url); },4000);
+}
+
 /* ================= connection test ================= */
 function testConnection(){
   setConn('Testing — trying each model name…','');
@@ -683,7 +744,9 @@ function renderSummary(){
   pChecked.onclick=function(){ printLabels(done.filter(function(it){return it.toPrint;})); };
   var copy=document.createElement('button'); copy.className='btn'; copy.style.background='transparent'; copy.style.color='var(--paper)'; copy.style.border='2px solid var(--paper)';
   copy.textContent=state.copied?'Copied!':'Copy list'; copy.onclick=copyInventory;
-  sp.appendChild(pAll); sp.appendChild(pChecked); sp.appendChild(copy);
+  var csv=document.createElement('button'); csv.className='btn'; csv.style.background='var(--white)'; csv.style.color='var(--ink)';
+  csv.textContent='Export CSV'; csv.onclick=exportCsv;
+  sp.appendChild(pAll); sp.appendChild(pChecked); sp.appendChild(copy); sp.appendChild(csv);
   bar.appendChild(sp);
   wrap.appendChild(bar);
 }
@@ -775,8 +838,8 @@ function renderItems(){
 function renderAll(){ renderSummary(); renderItems(); }
 
 /* ================= wiring ================= */
-$('initials').oninput=function(e){ saveInitials(e.target.value); };
-$('saleName').oninput=function(e){ state.saleName=e.target.value; };
+function refreshNewSaleBtn(){ $('newSale').disabled = !$('saleName').value.trim(); }
+$('saleName').oninput=function(e){ state.saleName=e.target.value; refreshNewSaleBtn(); };
 $('companyName').oninput=function(e){ state.companyName=e.target.value; $('brandLine').textContent=e.target.value||'Freedom Estate Services'; };
 $('labelSize').onchange=function(e){ state.labelSizeId=e.target.value; };
 $('newSale').onclick=startNewSale;
@@ -790,6 +853,7 @@ $('toBottom').onclick=function(){ window.scrollTo({top:document.body.scrollHeigh
 renderLabelOptions();
 loadDeviceProfile();
 renderAll();
+refreshNewSaleBtn();
 </script>
 </body>
 </html>
