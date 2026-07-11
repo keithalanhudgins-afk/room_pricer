@@ -89,7 +89,7 @@
   .pricebox{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:150px}
   .plabel{font-size:14px;font-weight:700;color:var(--soft);text-transform:uppercase;letter-spacing:.12em}
   .pcontrol{display:flex;align-items:center;gap:8px}
-  .pbtn{width:48px;height:48px;border-radius:12px;font-size:28px;font-weight:900;line-height:1}
+  .pbtn{width:58px;height:58px;border-radius:14px;font-size:34px;font-weight:900;line-height:1}
   .pminus{border:3px solid var(--blue);background:var(--white);color:var(--blue)}
   .pplus{border:none;background:var(--blue);color:var(--white)}
   .pinput{width:84px;font-size:28px;font-weight:800;padding:6px 4px;border-radius:10px;border:3px solid var(--blue);background:var(--white);text-align:center}
@@ -112,6 +112,13 @@
   #keyPanel{display:none}
   #keyPanel.open{display:block}
   input.key{width:100%;padding:12px;font-size:16px;border:2px solid var(--manilaEdge);border-radius:10px;background:var(--white)}
+
+  .item.review{background:#FFF6EC;border-color:#E8B877}
+  .reviewbanner{width:100%;background:#B9601A;color:#fff;font-size:15px;font-weight:800;border-radius:10px;padding:9px 13px;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+  .reviewbanner::before{content:"\26A0"}
+  .btn-review{background:#fff;color:#B9601A;border:2px solid #E0A263;font-weight:800;border-radius:10px;padding:11px 14px;font-size:15px;width:100%;margin-top:6px}
+  .btn-unflag{background:#B9601A;color:#fff;border:none;font-weight:800;border-radius:10px;padding:11px 14px;font-size:15px;width:100%;margin-top:6px}
+  .btn-retake{background:#fff;color:var(--blue);border:2px solid var(--blue);font-weight:800;border-radius:10px;padding:11px 14px;font-size:15px;width:100%;margin-top:6px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -143,11 +150,10 @@
 
   <!-- Step 1 -->
   <div class="card">
-    <div class="step">Step 1 — Your sale</div>
-    <p class="hint" style="margin-top:0;margin-bottom:10px;font-size:15px">Type a sale name, then tap <strong>Start new sale</strong>. Coming back to a sale you already started? Tap <strong>Load a sale</strong>.</p>
+    <div class="step">Step 1 — Your sale / room</div>
+    <p class="hint" style="margin-top:0;margin-bottom:10px;font-size:15px">Type a name for this sale or room, then scroll down and add your photos. Your work saves automatically under that name. Coming back to one you already started? Tap <strong>Load a sale</strong>.</p>
     <div class="row">
-      <input class="txt sale" id="saleName" placeholder="Sale name (e.g. Smith House)">
-      <button class="btn btn-blue" id="newSale">Start new sale</button>
+      <input class="txt sale" id="saleName" placeholder="Sale / room name (e.g. Smith House — Kitchen)">
       <button class="btn btn-ghost-blue" id="loadSale">Load a sale</button>
     </div>
     <div id="savedList"></div>
@@ -383,7 +389,7 @@ function writeSale(showMsg){
     items: done.map(function(it){ return {
       id:it.id, lot:it.lot, deviceTag:it.deviceTag||state.initials, title:it.title, tagName:it.tagName,
       category:it.category, conditionNote:it.conditionNote, price:it.price, qty:it.qty||1,
-      priceLow:it.priceLow, priceHigh:it.priceHigh, aiSuggested:(it.aiSuggested!=null?it.aiSuggested:it.price), reasoning:it.reasoning, researchFlag:it.researchFlag, thumb:it.thumb||''
+      priceLow:it.priceLow, priceHigh:it.priceHigh, aiSuggested:(it.aiSuggested!=null?it.aiSuggested:it.price), reasoning:it.reasoning, researchFlag:it.researchFlag, needsReview:!!it.needsReview, thumb:it.thumb||''
     };})
   };
   try{ localStorage.setItem(saleKey(), JSON.stringify(payload)); if(showMsg) setCloud('Saved '+done.length+' item'+(done.length===1?'':'s')+' to "'+name+'" on this phone.'); }
@@ -418,14 +424,14 @@ function openSavedSales(){
 function loadSale(key){
   var d; try{ d=JSON.parse(localStorage.getItem(key)); }catch(e){ setCloud('That sale could not be read.'); return; }
   if(!d || !(d.items||[]).length){ setCloud('That sale had no items.'); return; }
-  if(d.name) { state.saleName=d.name; $('saleName').value=d.name; } if(typeof refreshNewSaleBtn==='function') refreshNewSaleBtn();
+  if(d.name) { state.saleName=d.name; $('saleName').value=d.name; }
   if(d.companyName){ state.companyName=d.companyName; $('companyName').value=d.companyName; }
   if(d.labelSizeId){ state.labelSizeId=d.labelSizeId; $('labelSize').value=d.labelSizeId; }
   state.items = d.items.map(function(s){ return {
     id:s.id||('item-'+Date.now()+'-'+Math.random()), lot:s.lot, deviceTag:s.deviceTag||'', file:null, thumb:s.thumb||'',
     status:'done', tagName:s.tagName, title:s.title, category:s.category, conditionNote:s.conditionNote,
-    price:s.price, qty:s.qty||1, priceLow:s.priceLow, priceHigh:s.priceHigh, aiSuggested:(s.aiSuggested!=null?s.aiSuggested:s.price), reasoning:s.reasoning, researchFlag:s.researchFlag,
-    error:'', toPrint:true
+    price:s.price, qty:s.qty||1, priceLow:s.priceLow, priceHigh:s.priceHigh, aiSuggested:(s.aiSuggested!=null?s.aiSuggested:s.price), reasoning:s.reasoning, researchFlag:s.researchFlag, needsReview:!!s.needsReview,
+    error:'', toPrint: s.needsReview ? false : true
   };});
   lotCounter=state.items.length;
   state.savedOpen=false;
@@ -444,7 +450,7 @@ function startNewSale(){
     setTimeout(function(){ state.confirmNew=false; },6000);
     return;
   }
-  state.confirmNew=false; state.items=[]; lotCounter=0; state.saleName=''; $('saleName').value=''; state.savedOpen=false; if(typeof refreshNewSaleBtn==='function') refreshNewSaleBtn();
+  state.confirmNew=false; state.items=[]; lotCounter=0; state.saleName=''; $('saleName').value=''; state.savedOpen=false;
   setCloud('Fresh start — each item gets its own number as you add it.');
   renderSaved(); renderAll();
 }
@@ -506,20 +512,59 @@ function retryItem(id){
     scheduleAutosave();
   }).catch(function(err){ patchItem(id,{status:'error',error:(err&&err.message)||'Still failing — try again in a moment.'}); });
 }
+function toggleReview(id){
+  var row=null; for(var i=0;i<state.items.length;i++){ if(state.items[i].id===id) row=state.items[i]; }
+  if(!row) return;
+  var now=!row.needsReview;
+  // When flagging for review, hold it out of printing so a wrong label never prints.
+  patchItem(id,{ needsReview:now, toPrint: now ? false : true });
+  scheduleAutosave();
+}
+function retakePhoto(id){
+  // Open a fresh photo picker for just this item, then re-price with the new photo.
+  var input=document.createElement('input');
+  input.type='file'; input.accept='image/*'; input.setAttribute('capture','environment');
+  input.style.display='none';
+  document.body.appendChild(input);
+  input.onchange=function(e){
+    var file=e.target.files && e.target.files[0];
+    document.body.removeChild(input);
+    if(!file) return;
+    var row=null; for(var i=0;i<state.items.length;i++){ if(state.items[i].id===id) row=state.items[i]; }
+    if(!row) return;
+    row.file=file;
+    patchItem(id,{status:'pricing',error:'',needsReview:false});
+    fileToThumbDataUrl(file).then(function(thumb){ patchItemQuiet(id,{thumb:thumb}); });
+    fileToResizedBase64(file).then(callPricingAPI).then(function(result){
+      var price=roundEstatePrice(Number(result.suggested_price)||1);
+      patchItem(id,{ status:'done', title:result.title||'Unidentified item',
+        tagName:(result.tag_name||result.title||'Item').slice(0,28), category:result.category||'',
+        conditionNote:result.condition_note||'', price:price, aiSuggested:price,
+        priceLow:Number(result.price_low)||price, priceHigh:Number(result.price_high)||price,
+        reasoning:result.reasoning||'', researchFlag:!!result.research_flag, toPrint:true });
+      scheduleAutosave();
+    }).catch(function(err){ patchItem(id,{status:'error',error:(err&&err.message)||'Could not price the new photo. Try again.'}); });
+  };
+  input.click();
+}
 
 /* ================= item mutations ================= */
 function patchItem(id,patch){
   for(var i=0;i<state.items.length;i++){ if(state.items[i].id===id){ for(var k in patch) state.items[i][k]=patch[k]; } }
   renderAll();
 }
+function patchItemQuiet(id,patch){
+  for(var i=0;i<state.items.length;i++){ if(state.items[i].id===id){ for(var k in patch) state.items[i][k]=patch[k]; } }
+}
 function setItemStatus(id,status){ patchItem(id,{status:status}); }
 function updateItem(id,patch){ patchItem(id,patch); scheduleAutosave(); }
+function updateItemQuiet(id,patch){ patchItemQuiet(id,patch); scheduleAutosave(); }
 function removeItem(id){ state.items=state.items.filter(function(it){return it.id!==id;}); renderAll(); scheduleAutosave(); }
 
 /* ================= printing ================= */
 function esc(t){ return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function printLabels(rows){
-  var printable=rows.filter(function(r){return r.status==='done';});
+  var printable=rows.filter(function(r){return r.status==='done' && !r.needsReview;});
   if(!printable.length){ setCloud('Nothing selected to print.'); return; }
   if(!window.jspdf || !window.jspdf.jsPDF){
     setCloud('Label engine still loading — wait a second and tap print again.');
@@ -610,7 +655,7 @@ function printLabels(rows){
 
 /* ================= copy list ================= */
 function copyInventory(){
-  var done=state.items.filter(function(it){return it.status==='done';});
+  var done=state.items.filter(function(it){return it.status==='done' && !it.needsReview;});
   var lines=done.map(function(it){
     return 'Lot '+lotLabel(it)+' — '+it.title+' — $'+it.price+((it.qty||1)>1?(' x '+it.qty+' = $'+(it.price*it.qty)):'')+(it.researchFlag?'  (RESEARCH BEFORE SALE)':'');
   });
@@ -627,8 +672,8 @@ function csvCell(v){
   return /[",\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
 }
 function exportCsv(){
-  var done=state.items.filter(function(it){return it.status==='done';});
-  if(!done.length){ setCloud('Nothing to export yet — price some items first.'); return; }
+  var done=state.items.filter(function(it){return it.status==='done' && !it.needsReview;});
+  if(!done.length){ setCloud('Nothing to export yet — price some items first (flagged-for-review items are held out).'); return; }
   var rows=[['Item Number','Item Name','Category','AI Suggested Price','Low Estimate','High Estimate','Printed Tag Price','Quantity']];
   done.forEach(function(it){
     rows.push([
@@ -721,20 +766,22 @@ function renderSaved(){
 }
 
 function renderSummary(){
-  var done=state.items.filter(function(it){return it.status==='done';});
+  var allDone=state.items.filter(function(it){return it.status==='done';});
   var wrap=$('summary'); wrap.innerHTML='';
-  if(!done.length) return;
+  if(!allDone.length) return;
+  // Items flagged for review are held out of totals, counts, and printing.
+  var done=allDone.filter(function(it){return !it.needsReview;});
+  var reviewCount=allDone.filter(function(it){return it.needsReview;}).length;
   var total=done.reduce(function(s,it){return s+(it.price||0)*(it.qty||1);},0);
   var pieces=done.reduce(function(s,it){return s+(it.qty||1);},0);
-  var flagged=done.filter(function(it){return it.researchFlag;}).length;
   var checked=done.filter(function(it){return it.toPrint;}).length;
 
   var bar=document.createElement('div'); bar.className='summary';
   var c1=document.createElement('div'); c1.style.fontSize='20px'; c1.style.fontWeight='800';
-  c1.textContent=done.length+' item'+(done.length===1?'':'s')+' priced'+(pieces!==done.length?(' ('+pieces+' pieces)'):'');
+  c1.textContent=done.length+' item'+(done.length===1?'':'s')+' ready'+(pieces!==done.length?(' ('+pieces+' pieces)'):'');
   var c2=document.createElement('div'); c2.style.fontSize='20px'; c2.innerHTML='Total suggested: <strong>$'+total.toLocaleString()+'</strong>';
   bar.appendChild(c1); bar.appendChild(c2);
-  if(flagged>0){ var f=document.createElement('div'); f.className='flag'; f.textContent=flagged+' flagged for research'; bar.appendChild(f); }
+  if(reviewCount>0){ var f=document.createElement('div'); f.className='flag'; f.textContent=reviewCount+' flagged for review'; bar.appendChild(f); }
 
   var sp=document.createElement('div'); sp.className='spacer';
   var pAll=document.createElement('button'); pAll.className='btn btn-blue'; pAll.textContent='Print all labels';
@@ -755,8 +802,9 @@ function renderItems(){
   var wrap=$('items'); wrap.innerHTML='';
   $('emptyState').style.display = state.items.length? 'none':'block';
   state.items.forEach(function(it){
-    var card=document.createElement('div'); card.className='item';
+    var card=document.createElement('div'); card.className='item'+(it.needsReview?' review':'');
     var hole=document.createElement('div'); hole.className='hole'; card.appendChild(hole);
+    if(it.needsReview){ var rvb=document.createElement('div'); rvb.className='reviewbanner'; rvb.textContent='Flagged for review — not printing. Retake the photo or unflag when fixed.'; card.appendChild(rvb); }
 
     if(it.thumb){ var im=document.createElement('img'); im.className='thumb'; im.src=it.thumb; im.alt=it.title||'Item photo'; card.appendChild(im); }
     else { var ph=document.createElement('div'); ph.className='thumb ph'; ph.textContent='No preview'; card.appendChild(ph); }
@@ -789,7 +837,7 @@ function renderItems(){
       var tw=document.createElement('div'); tw.className='tagwrap';
       var lb=document.createElement('label'); lb.textContent='Tag name (what prints on the label)';
       var ti=document.createElement('input'); ti.value=it.tagName; ti.maxLength=28;
-      ti.oninput=function(e){ updateItem(it.id,{tagName:e.target.value}); };
+      ti.oninput=function(e){ updateItemQuiet(it.id,{tagName:e.target.value}); };
       lb.appendChild(ti); tw.appendChild(lb); fields.appendChild(tw);
     }
     card.appendChild(fields);
@@ -799,14 +847,14 @@ function renderItems(){
       var pl=document.createElement('div'); pl.className='plabel'; pl.textContent='Price'; pb.appendChild(pl);
       var pc=document.createElement('div'); pc.className='pcontrol';
       var minus=document.createElement('button'); minus.className='pbtn pminus'; minus.textContent='\u2212';
-      minus.onclick=function(){ updateItem(it.id,{price:priceDown(it.price||1)}); };
+      minus.onclick=function(){ updateItem(it.id,{price:Math.max(0,(Number(it.price)||0)-1)}); };
       var dollarWrap=document.createElement('div'); dollarWrap.style.display='flex'; dollarWrap.style.alignItems='center'; dollarWrap.style.gap='2px';
       var dollar=document.createElement('span'); dollar.style.fontSize='26px'; dollar.style.fontWeight='800'; dollar.textContent='$';
-      var pin=document.createElement('input'); pin.className='pinput'; pin.type='number'; pin.min='0'; pin.value=(it.price==null?'':it.price);
+      var pin=document.createElement('input'); pin.className='pinput'; pin.type='number'; pin.min='0'; pin.setAttribute('inputmode','numeric'); pin.setAttribute('pattern','[0-9]*'); pin.value=(it.price==null?'':it.price);
       pin.onchange=function(e){ updateItem(it.id,{price:Number(e.target.value)}); };
       dollarWrap.appendChild(dollar); dollarWrap.appendChild(pin);
       var plus=document.createElement('button'); plus.className='pbtn pplus'; plus.textContent='+';
-      plus.onclick=function(){ updateItem(it.id,{price:priceUp(it.price||0)}); };
+      plus.onclick=function(){ updateItem(it.id,{price:(Number(it.price)||0)+1}); };
       pc.appendChild(minus); pc.appendChild(dollarWrap); pc.appendChild(plus); pb.appendChild(pc);
 
       var qty=document.createElement('div'); qty.className='qty';
@@ -825,6 +873,18 @@ function renderItems(){
 
       var pr=document.createElement('button'); pr.className='pillbtn'; pr.textContent='Print label';
       pr.onclick=function(){ printLabels([it]); }; pb.appendChild(pr);
+
+      // Flag-for-review controls
+      var retake=document.createElement('button'); retake.className='btn-retake'; retake.textContent='Retake photo';
+      retake.onclick=function(){ retakePhoto(it.id); }; pb.appendChild(retake);
+      if(it.needsReview){
+        var unflag=document.createElement('button'); unflag.className='btn-unflag'; unflag.textContent='Unflag (looks right now)';
+        unflag.onclick=function(){ toggleReview(it.id); }; pb.appendChild(unflag);
+      } else {
+        var flagb=document.createElement('button'); flagb.className='btn-review'; flagb.textContent='Flag for review';
+        flagb.onclick=function(){ toggleReview(it.id); }; pb.appendChild(flagb);
+      }
+
       var rm=document.createElement('button'); rm.className='removebtn'; rm.textContent='Remove'; rm.onclick=function(){ removeItem(it.id); }; pb.appendChild(rm);
       card.appendChild(pb);
     } else {
@@ -838,14 +898,12 @@ function renderItems(){
 function renderAll(){ renderSummary(); renderItems(); }
 
 /* ================= wiring ================= */
-function refreshNewSaleBtn(){ $('newSale').disabled = !$('saleName').value.trim(); }
-$('saleName').oninput=function(e){ state.saleName=e.target.value; refreshNewSaleBtn(); };
+$('saleName').oninput=function(e){ state.saleName=e.target.value; };
 $('companyName').oninput=function(e){ state.companyName=e.target.value; $('brandLine').textContent=e.target.value||'Freedom Estate Services'; };
 $('labelSize').onchange=function(e){ state.labelSizeId=e.target.value; };
-$('newSale').onclick=startNewSale;
 $('loadSale').onclick=openSavedSales;
 $('testConn').onclick=testConnection;
-$('addPhotos').onclick=function(){ if(!localStorage.getItem('rp_key')){ $('keyPanel').classList.add('open'); setCloud('Enter your pricing key first (one time on this phone).'); return; } $('fileInput').click(); };
+$('addPhotos').onclick=function(){ if(!localStorage.getItem('rp_key')){ $('keyPanel').classList.add('open'); setCloud('Enter your pricing key first (one time on this phone).'); return; } if(!$('saleName').value.trim()){ setCloud('Type a sale / room name up in Step 1 first — that\'s what saves your work.'); $('saleName').focus(); try{ $('saleName').scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){} return; } $('fileInput').click(); };
 $('fileInput').onchange=function(e){ handleFiles(e.target.files); };
 $('toTop').onclick=function(){ window.scrollTo({top:0,behavior:'smooth'}); };
 $('toBottom').onclick=function(){ window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); };
@@ -853,7 +911,6 @@ $('toBottom').onclick=function(){ window.scrollTo({top:document.body.scrollHeigh
 renderLabelOptions();
 loadDeviceProfile();
 renderAll();
-refreshNewSaleBtn();
 </script>
 </body>
 </html>
